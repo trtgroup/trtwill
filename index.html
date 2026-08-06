@@ -18,7 +18,7 @@
     </div>
   </noscript>
 
-<!-- Meta Pixel + WhatsApp handling (additive; does not modify page bundle) -->
+<!-- Meta Pixel (additive; does not modify page bundle or WhatsApp links) -->
 <script>
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -32,42 +32,22 @@ fbq('init', '1470027976706436');
 fbq('track', 'PageView');
 
 (function () {
-  var SHORT_MSG = '\u4f60\u597d\uff0c\u6211\u60f3\u4e86\u89e3\u4e00\u4e0b\u9057\u5631';
   var lastLead = 0;
-
-  function waLink(el) {
+  function isWA(el) {
     var a = el && el.closest ? el.closest('a') : null;
-    if (!a) return null;
+    if (!a) return false;
     var h = (a.href || '').toLowerCase();
-    return (h.indexOf('wa.me') !== -1 || h.indexOf('whatsapp') !== -1) ? a : null;
+    return h.indexOf('wa.me') !== -1 || h.indexOf('whatsapp') !== -1;
   }
-
-  function onTap(e) {
-    var a = waLink(e.target);
-    if (!a) return;
-
-    // 1) Rewrite the pre-filled message to the low-commitment version.
-    //    Only for the simple enquiry buttons - leave form-submission links
-    //    (which carry name/phone/email) untouched.
-    try {
-      var u = new URL(a.href);
-      var t = u.searchParams.get('text') || '';
-      if (t.indexOf('\u59d3\u540d') === -1) {      // no form fields = plain enquiry
-        u.searchParams.set('text', SHORT_MSG);
-        a.href = u.toString();
-      }
-    } catch (err) {}
-
-    // 2) Fire one Lead per tap (3s lock stops double-counting).
+  function fire(e) {
+    if (!isWA(e.target)) return;
     var now = Date.now();
-    if (now - lastLead > 3000) {
-      lastLead = now;
-      if (typeof fbq === 'function') { fbq('track', 'Lead'); }
-    }
+    if (now - lastLead < 3000) return;
+    lastLead = now;
+    if (typeof fbq === 'function') { fbq('track', 'Lead'); }
   }
-
-  document.addEventListener('pointerdown', onTap, true);
-  document.addEventListener('click', onTap, true);
+  document.addEventListener('pointerdown', fire, true);
+  document.addEventListener('click', fire, true);
 })();
 </script>
 <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1470027976706436&ev=PageView&noscript=1"/></noscript>
