@@ -18,7 +18,7 @@
     </div>
   </noscript>
 
-<!-- Meta Pixel (additive; does not modify page bundle or WhatsApp links) -->
+<!-- Meta Pixel + intent-verified WhatsApp Lead (additive; bundle untouched) -->
 <script>
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -31,23 +31,43 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 fbq('init', '1470027976706436');
 fbq('track', 'PageView');
 
+/* Lead fires ONLY on a deliberate, completed tap of a WhatsApp link.
+   Guards against the false positives that inflated earlier data:
+   - uses 'click' only (never pointerdown/touchstart, which fire on scroll-start)
+   - requires the gesture to end on the same element it began on
+   - requires movement under 10px (a tap, not a swipe)
+   - requires the press to be under 800ms (a tap, not a long-press)
+   - requires the event to be user-trusted (not script-dispatched)
+   - 10s dedupe window per session                                   */
 (function () {
-  var lastLead = 0;
-  function isWA(el) {
+  var startX = 0, startY = 0, startT = 0, startEl = null, lastLead = 0;
+
+  function waLink(el) {
     var a = el && el.closest ? el.closest('a') : null;
-    if (!a) return false;
+    if (!a) return null;
     var h = (a.href || '').toLowerCase();
-    return h.indexOf('wa.me') !== -1 || h.indexOf('whatsapp') !== -1;
+    return (h.indexOf('wa.me') !== -1 || h.indexOf('whatsapp') !== -1) ? a : null;
   }
-  function fire(e) {
-    if (!isWA(e.target)) return;
+
+  document.addEventListener('pointerdown', function (e) {
+    startX = e.clientX; startY = e.clientY; startT = Date.now();
+    startEl = waLink(e.target);
+  }, true);
+
+  document.addEventListener('click', function (e) {
+    if (!e.isTrusted) return;                       // ignore synthetic clicks
+    var a = waLink(e.target);
+    if (!a) return;
+    if (startEl !== a) return;                      // must start & end on same link
+    var moved = Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
+    if (moved > 10) return;                         // swipe / scroll, not a tap
+    var held = Date.now() - startT;
+    if (held > 800) return;                         // long-press, not a tap
     var now = Date.now();
-    if (now - lastLead < 3000) return;
+    if (now - lastLead < 10000) return;             // dedupe
     lastLead = now;
     if (typeof fbq === 'function') { fbq('track', 'Lead'); }
-  }
-  document.addEventListener('pointerdown', fire, true);
-  document.addEventListener('click', fire, true);
+  }, true);
 })();
 </script>
 <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1470027976706436&ev=PageView&noscript=1"/></noscript>
